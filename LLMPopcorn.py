@@ -14,7 +14,7 @@ random.seed(SEED)
 
 # Input file and output directory
 input_file = "abstract_prompts.txt"
-output_dir = "baseline_concrete_outputs_2_eff"
+output_dir = "baseline_concrete_outputsf"
 os.makedirs(output_dir, exist_ok=True)
 
 # Model name (example)

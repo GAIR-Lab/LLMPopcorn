@@ -4,9 +4,16 @@ Welcome to LLMPopcorn! This guide will help you generate video titles and prompt
 
 ## Prerequisites
 
+### Install Required Python Packages
+
+Before running the scripts, ensure you have the necessary Python packages installed. You can install them using the following command:
+
+```bash
+pip install torch transformers diffusers tqdm numpy pandas sentence-transformers faiss-cpu openai huggingface_hub safetensors
+```
 
 **Download the Dataset**:  
-   Download the dataset from [this link](https://github.com/westlake-repl/MicroLens) and place it in the `Microlens` folder.
+Download the dataset from [this link](https://github.com/westlake-repl/MicroLens) and place it in the `Microlens` folder for evaluation.
 
 ## Step 1: Generate Video Titles and Prompts
 
@@ -28,8 +35,8 @@ python generating_images_videos_three.py
 ```
 
 ## Step 3: Clone the Evaluation Code 
-   Use the following command to clone the evaluation code repository:
-   ```bash
-   git clone https://github.com/ICDM-UESTC/MMRA.git
-   ```
+Use the following command to clone the evaluation code repository:
+```bash
+git clone https://github.com/ICDM-UESTC/MMRA.git
+```
 

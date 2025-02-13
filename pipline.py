@@ -552,9 +552,9 @@ if __name__ == "__main__":
         inference_from_prompts_mistral(args.INPUT_DIR, args.OUTPUT_DIR)
     elif args.MODE == "infer_api":
         os.makedirs(args.OUTPUT_DIR, exist_ok=True)
-        inference_from_prompts_api(args.INPUT_DIR, args.OUTPUT_DIR,"REMOVED_API_KEY",model=args.MODEL)
+        inference_from_prompts_api(args.INPUT_DIR, args.OUTPUT_DIR,"API_KEY",model=args.MODEL)
     elif args.MODE == "infer_gpt":
-        api_key = "REMOVED_API_KEY"
+        api_key = "API_KEY"
         os.makedirs(args.OUTPUT_DIR, exist_ok=True)
         inference_from_prompts_gpt(args.INPUT_DIR, args.OUTPUT_DIR,api_key,model="gpt-4o")
     import torch
