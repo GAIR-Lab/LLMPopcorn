@@ -13,7 +13,7 @@ pip install torch transformers diffusers tqdm numpy pandas sentence-transformers
 ```
 
 **Download the Dataset**:  
-Download the dataset from [this link](https://github.com/westlake-repl/MicroLens) and place it in the `Microlens` folder for use with `PE.py`.
+Download the Microlens dataset and place it in the `Microlens` folder for use with `PE.py`.
 
 ## Step 1: Generate Video Titles and Prompts
 
@@ -36,6 +36,4 @@ python generating_images_videos_three.py
 
 ## Step 3: Clone the Evaluation Code
 
-To access the code repository for evaluation, use the following command to clone the evaluation code repository:
-[this link](https://github.com/ICDM-UESTC/MMRA) 
-Then, following the instructions in the repository, you can evaluate the generated videos.
+Then, following the instructions in the MMRA repository, you can evaluate the generated videos.
