@@ -1,2 +1,2 @@
-# LLMPopcorn
-LLM-assisted Popular Micro-video Creation
+# LLMPopcorn (ICASSP'2026)
+LLMPopcorn: Exploring LLMs as Assistants for Popular Micro-video Generation.
