@@ -36,4 +36,4 @@ python generating_images_videos_three.py
 
 ## Step 3: Clone the Evaluation Code
 
-Then, following the instructions in the MMRA repository, you can evaluate the generated videos.
+Then, following the instructions in the [MMRA](https://github.com/ICDM-UESTC/MMRA) repository, you can evaluate the generated videos.
