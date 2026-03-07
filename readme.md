@@ -37,3 +37,26 @@ python generating_images_videos_three.py
 ## Step 3: Clone the Evaluation Code
 
 Then, following the instructions in the MMRA repository, you can evaluate the generated videos.
+
+## Tutorial: Using the Prompts Dataset
+
+You can easily download and use the structured prompts directly from Hugging Face:
+
+### 1. Install `datasets`
+```bash
+pip install datasets
+```
+
+### 2. Load the Dataset in Python
+```python
+from datasets import load_dataset
+
+# Load the LLMPopcorn prompts
+dataset = load_dataset("junchenfu/llmpopcorn_prompts")
+
+# Access the data (abstract or concrete)
+for item in dataset["train"]:
+    print(f"Type: {item['type']}, Prompt: {item['prompt']}")
+```
+
+This dataset contains both abstract and concrete prompts, which you can use as input for the video generation scripts in Step 2.
