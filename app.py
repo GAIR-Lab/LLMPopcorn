@@ -12,14 +12,10 @@ from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import spaces
 
-# ──────────────────────────────────────────
-# 1. Shared: LLM client
-# ──────────────────────────────────────────
+# --- 1. LLM client ---
 client = InferenceClient("meta-llama/Llama-3.3-70B-Instruct")
 
-# ──────────────────────────────────────────
-# 2. Shared: Video generation pipeline (AnimateDiff-Lightning)
-# ──────────────────────────────────────────
+# --- 2. Video generation pipeline (AnimateDiff-Lightning) ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 
@@ -35,23 +31,18 @@ pipe.scheduler = EulerDiscreteScheduler.from_config(
     pipe.scheduler.config, timestep_spacing="trailing", beta_schedule="linear"
 )
 
-# ──────────────────────────────────────────
-# 3. PE only: Load MicroLens RAG dataset + SentenceTransformer
-# ──────────────────────────────────────────
+# --- 3. PE: Load MicroLens RAG dataset + SentenceTransformer ---
 print("Loading MicroLens RAG dataset from Hugging Face...")
 rag_df = load_dataset("junchenfu/microlens_rag", split="train").to_pandas()
-rag_df['comment_count'] = rag_df['comment_count'].fillna(0)
+rag_df["comment_count"] = rag_df["comment_count"].fillna(0)
 
 embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L12-v2")
 
-# Pre-compute partition embeddings for fast retrieval
-unique_partitions = rag_df['partition'].unique().tolist()
+unique_partitions = rag_df["partition"].unique().tolist()
 partition_embeddings = embed_model.encode(unique_partitions)
 print(f"RAG dataset loaded: {len(rag_df)} videos, {len(unique_partitions)} categories.")
 
-# ──────────────────────────────────────────
-# 4. Basic LLMPopcorn: direct LLM generation
-# ──────────────────────────────────────────
+# --- 4. Basic LLMPopcorn: direct LLM generation ---
 def generate_basic(query):
     system_prompt = (
         "You are a talented video creator. "
@@ -74,11 +65,8 @@ def generate_basic(query):
     )
     return json.loads(response.choices[0].message.content)
 
-# ──────────────────────────────────────────
-# 5. PE: RAG + CoT generation
-# ──────────────────────────────────────────
+# --- 5. PE: RAG + CoT generation ---
 def build_rag_context(user_prompt, selected_videos_num=10, num_tags=1, ratio=0.1):
-    # Find top matching partition(s) by cosine similarity
     prompt_emb = embed_model.encode([user_prompt])[0]
     sims = [
         np.dot(prompt_emb, pe) / (np.linalg.norm(prompt_emb) * np.linalg.norm(pe))
@@ -86,30 +74,29 @@ def build_rag_context(user_prompt, selected_videos_num=10, num_tags=1, ratio=0.1
     ]
     top_partitions = [unique_partitions[i] for i in np.argsort(sims)[::-1][:num_tags]]
 
-    filtered = rag_df[rag_df['partition'].isin(top_partitions)].copy()
-    filtered = filtered.sort_values('comment_count', ascending=False)
+    filtered = rag_df[rag_df["partition"].isin(top_partitions)].copy()
+    filtered = filtered.sort_values("comment_count", ascending=False)
 
     n_neg = int(len(filtered) * ratio)
     n_pos = len(filtered) - n_neg
-    positive_videos = filtered.head(n_pos).drop_duplicates(subset=['video_id'])
-    negative_videos = filtered.iloc[n_pos:].tail(n_neg).drop_duplicates(subset=['video_id'])
-    combined = pd.concat([positive_videos, negative_videos]).drop_duplicates(subset=['video_id'])
+    positive_videos = filtered.head(n_pos).drop_duplicates(subset=["video_id"])
+    negative_videos = filtered.iloc[n_pos:].tail(n_neg).drop_duplicates(subset=["video_id"])
+    combined = pd.concat([positive_videos, negative_videos]).drop_duplicates(subset=["video_id"])
 
-    # FAISS retrieval within the filtered pool
-    texts = (combined['title_en'] + " " + combined['cover_desc'] + " " + combined['caption_en']).tolist()
-    combined_embs = embed_model.encode(texts).astype('float32')
+    texts = (combined["title_en"] + " " + combined["cover_desc"] + " " + combined["caption_en"]).tolist()
+    combined_embs = embed_model.encode(texts).astype("float32")
     index = faiss.IndexFlatL2(combined_embs.shape[1])
     index.add(combined_embs)
-    query_emb = embed_model.encode([user_prompt]).astype('float32')
+    query_emb = embed_model.encode([user_prompt]).astype("float32")
     _, I = index.search(query_emb, len(combined))
     retrieved = combined.iloc[I[0]]
 
     n_final_neg = int(selected_videos_num * ratio)
     n_final_pos = selected_videos_num - n_final_neg
-    pos_ids = set(positive_videos['video_id'].tolist())
-    neg_ids = set(negative_videos['video_id'].tolist())
-    final_pos = retrieved[retrieved['video_id'].isin(pos_ids)].head(n_final_pos)
-    final_neg = retrieved[retrieved['video_id'].isin(neg_ids)].head(n_final_neg)
+    pos_ids = set(positive_videos["video_id"].tolist())
+    neg_ids = set(negative_videos["video_id"].tolist())
+    final_pos = retrieved[retrieved["video_id"].isin(pos_ids)].head(n_final_pos)
+    final_neg = retrieved[retrieved["video_id"].isin(neg_ids)].head(n_final_neg)
 
     pos_ctx = "\n".join([
         f"Reference Video {i+1} (Popular):\nTitle: {row['title_en']}\nDesc: {row['caption_en']}\nComments: {int(row['comment_count'])}"
@@ -123,7 +110,6 @@ def build_rag_context(user_prompt, selected_videos_num=10, num_tags=1, ratio=0.1
 
 def generate_pe(query, vid_num=10):
     rag_context, matched_tag = build_rag_context(query, selected_videos_num=vid_num)
-
     cot_prompt = f"""You are a talented video creator. Think step-by-step using the reference videos below, then generate the most popular title, cover prompt, and 3-second video prompt.
 
 User Query: {query}
@@ -151,9 +137,7 @@ Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s
     result["_matched_tag"] = matched_tag
     return result
 
-# ──────────────────────────────────────────
-# 6. Shared: Video generation
-# ──────────────────────────────────────────
+# --- 6. Shared: Video generation ---
 @spaces.GPU(duration=60)
 def run_video_generation(video_prompt):
     output = pipe(prompt=video_prompt, guidance_scale=1.0, num_inference_steps=4, num_frames=16)
@@ -161,9 +145,7 @@ def run_video_generation(video_prompt):
     export_to_gif(output.frames[0], gif_path)
     return gif_path
 
-# ──────────────────────────────────────────
-# 7. Combined entrypoints for Gradio
-# ──────────────────────────────────────────
+# --- 7. Gradio entrypoints ---
 def run_basic(query):
     content = generate_basic(query)
     title = content.get("title", "Untitled")
@@ -181,19 +163,16 @@ def run_pe(query, vid_num):
     gif = run_video_generation(video_prompt)
     return title, cover, video_prompt, f"Matched category: **{matched_tag}**", gif
 
-# ──────────────────────────────────────────
-# 8. Gradio UI
-# ──────────────────────────────────────────
+# --- 8. Gradio UI ---
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🍿 LLMPopcorn Demo")
+    gr.Markdown("# Popcorn LLMPopcorn Demo")
     gr.Markdown(
         "Compare **Basic LLMPopcorn** (direct LLM generation) vs "
-        "**PE — Prompt Enhancement** (RAG + Chain-of-Thought using MicroLens reference videos)."
+        "**PE - Prompt Enhancement** (RAG + Chain-of-Thought using MicroLens reference videos)."
     )
 
     with gr.Tabs():
-        # ── Tab 1: Basic ──────────────────
-        with gr.Tab("⚡ Basic LLMPopcorn"):
+        with gr.Tab("Basic LLMPopcorn"):
             gr.Markdown("### Direct LLM Generation\nThe LLM generates title and prompts directly from your query without any external reference.")
             with gr.Row():
                 with gr.Column():
@@ -215,8 +194,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 outputs=[basic_title, basic_cover, basic_vprompt, basic_video],
             )
 
-        # ── Tab 2: PE ─────────────────────
-        with gr.Tab("🚀 PE — Prompt Enhancement (RAG + CoT)"):
+        with gr.Tab("PE - Prompt Enhancement (RAG + CoT)"):
             gr.Markdown(
                 "### RAG-Enhanced Generation\n"
                 "Retrieves similar popular/unpopular reference videos from **MicroLens** "
