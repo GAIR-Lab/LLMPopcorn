@@ -1,0 +1,13 @@
+torch
+transformers
+diffusers
+tqdm
+numpy
+pandas
+sentence-transformers
+faiss-cpu
+openai
+huggingface_hub
+safetensors
+accelerate
+bitsandbytes

@@ -33,20 +33,24 @@ def generate_rag_prompt(user_prompt,
     set_random_seed(seed)
 
     # 2. Load various data files
-    views_data = pd.read_csv('Microlens/MicroLens-100k_likes_and_views.txt',  
+    views_data = pd.read_csv('Microlens/MicroLens-100k_likes_and_views.txt',
                              sep='\t', header=None, names=['video_id','likes','views'])
-    title_data = pd.read_csv('Microlens/MicroLens-100k_title_en.csv', 
-                             sep=',', header=None, names=['video_id','title_en'])
-    cover_data = pd.read_csv('Microlens/llava-v1.5_caption.txt', 
-                             sep=',', header=None, names=['video_id','cover_desc'])
-    desc_data = pd.read_csv('Microlens/Microlens100K_captions_en.csv', 
-                            sep='\t', header=None, names=['video_id','caption_en'])
+    # MicroLens-100k_title_en.csv contains cover image descriptions (cover_desc)
+    cover_data = pd.read_csv('Microlens/MicroLens-100k_title_en.csv',
+                             sep=',', header=None, names=['video_id','cover_desc'],
+                             on_bad_lines='skip')
+    # Microlens100K_captions_en.csv contains video captions; use as title_en and caption_en
+    desc_data = pd.read_csv('Microlens/Microlens100K_captions_en.csv',
+                            sep='\t', header=None, names=['video_id','caption_en'],
+                            on_bad_lines='skip')
     tags_data = pd.read_csv('Microlens/tags_to_summary.csv',
-                            sep=',', header=None, names=['video_id','partition'])
-    
+                            sep=',', header=None, names=['video_id','partition'],
+                            on_bad_lines='skip')
+
     # 3. Load comment data and count comments for each video_id
     comments_data = pd.read_csv('Microlens/MicroLens-100k_comment_en.txt',
-                                sep='\t', header=None, names=['user_id','video_id','comment_text'])
+                                sep='\t', header=None, names=['user_id','video_id','comment_text'],
+                                on_bad_lines='skip')
     comments_data = comments_data[['video_id','comment_text']]
 
     # Group by video_id and count comments
@@ -57,23 +61,17 @@ def generate_rag_prompt(user_prompt,
         .reset_index(name='comment_count')
     )
 
-    # Merge all data
+    # Merge all data (use cover_desc as title_en since no separate title file is available)
     merged = (
         views_data
-        .merge(title_data, on='video_id', how='left')
         .merge(cover_data, on='video_id', how='left')
         .merge(desc_data, on='video_id', how='left')
         .merge(tags_data, on='video_id', how='left')
         .merge(comment_count_df, on='video_id', how='left')
     )
+    # Use cover_desc as title_en for compatibility with downstream prompts
+    merged['title_en'] = merged['cover_desc']
 
-    # Load test set IDs
-    test_id_data = pd.read_csv('/MicroLens/test_id.csv', 
-                               sep=',', header=None, names=['video_id'])
-
-    # Perform inner join with the merged dataframe on 'video_id'
-    merged = merged.merge(test_id_data, on='video_id', how='inner')
-    
     # Drop rows with missing values in key fields
     merged.dropna(subset=['title_en', 'cover_desc', 'caption_en', 'partition', 'comment_count'], inplace=True)
 

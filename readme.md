@@ -1,3 +1,17 @@
+---
+license: mit
+tags:
+- text-to-video
+- prompt-engineering
+- video-generation
+- llm
+- rag
+- research
+datasets:
+- junchenfu/llmpopcorn_prompts
+pipeline_tag: text-generation
+---
+
 # LLMPopcorn Usage Instructions
 
 Welcome to LLMPopcorn! This guide will help you generate video titles and prompts, as well as create AI-generated videos based on those prompts.
@@ -12,8 +26,30 @@ Before running the scripts, ensure that you have installed the necessary Python 
 pip install torch transformers diffusers tqdm numpy pandas sentence-transformers faiss-cpu openai huggingface_hub safetensors
 ```
 
-**Download the Dataset**:  
-Download the Microlens dataset and place it in the `Microlens` folder for use with `PE.py`.
+**Download the MicroLens Dataset**:  
+Download the following files from the [MicroLens dataset](https://github.com/westlake-repl/MicroLens) and place them in the `Microlens/` folder:
+
+| File | Description |
+|------|-------------|
+| `MicroLens-100k_likes_and_views.txt` | Video engagement stats (tab-separated) |
+| `MicroLens-100k_title_en.csv` | Cover image descriptions (comma-separated) |
+| `Microlens100K_captions_en.csv` | Video captions in English (tab-separated) |
+| `MicroLens-100k_comment_en.txt` | User comments (tab-separated) |
+| `tags_to_summary.csv` | Video category tags (comma-separated) |
+
+Your directory structure should look like:
+```
+LLMPopcorn/
+├── Microlens/
+│   ├── MicroLens-100k_likes_and_views.txt
+│   ├── MicroLens-100k_title_en.csv
+│   ├── Microlens100K_captions_en.csv
+│   ├── MicroLens-100k_comment_en.txt
+│   └── tags_to_summary.csv
+├── PE.py
+├── pipline.py
+└── ...
+```
 
 ## Step 1: Generate Video Titles and Prompts
 
