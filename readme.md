@@ -163,9 +163,13 @@ print(f"Total: {len(df)} videos, {df['partition'].nunique()} categories")
 If you find this work useful, please cite:
 
 ```bibtex
-@article{fu2026llmpopcorn,
-  title={LLMpopcorn: exploring LLMs as assistants for popular micro-video generation},
-  author={Fu, Junchen and Ge, Xuri and Zheng, Kaiwen and Karatzoglou, Alexandros and Arapakis, Ioannis and Xin, Xin and Ni, Yongxin and Jose, Joemon M},
-  year={2026}
+@misc{fu2026llmpopcornexploringllmsassistants,
+      title={LLMPopcorn: Exploring LLMs as Assistants for Popular Micro-video Generation}, 
+      author={Junchen Fu and Xuri Ge and Kaiwen Zheng and Alexandros Karatzoglou and Ioannis Arapakis and Xin Xin and Yongxin Ni and Joemon M. Jose},
+      year={2026},
+      eprint={2502.12945},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2502.12945}, 
 }
 ```
