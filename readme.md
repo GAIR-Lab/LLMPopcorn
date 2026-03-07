@@ -9,6 +9,7 @@ tags:
 - research
 datasets:
 - junchenfu/llmpopcorn_prompts
+- junchenfu/microlens_rag
 pipeline_tag: text-generation
 ---
 
@@ -96,3 +97,35 @@ for item in dataset["train"]:
 ```
 
 This dataset contains both abstract and concrete prompts, which you can use as input for the video generation scripts in Step 2.
+
+## RAG Reference Dataset: MicroLens
+
+For the RAG-enhanced pipeline (`PE.py` + `pipline.py`), we provide a pre-processed version of the MicroLens dataset on Hugging Face so you don't need to download and process the raw files manually.
+
+The dataset is available at: [**junchenfu/microlens_rag**](https://huggingface.co/datasets/junchenfu/microlens_rag)
+
+It contains **19,560** video entries across **22 categories** with the following fields:
+
+| Column | Description |
+|--------|-------------|
+| `video_id` | Unique video identifier |
+| `title_en` | Cover image description (used as title) |
+| `cover_desc` | Cover image description |
+| `caption_en` | Full video caption in English |
+| `partition` | Video category (e.g., Anime, Game, Delicacy) |
+| `likes` | Number of likes |
+| `views` | Number of views |
+| `comment_count` | Number of comments (used as popularity signal) |
+
+### Load the RAG Dataset in Python
+
+```python
+from datasets import load_dataset
+
+rag_dataset = load_dataset("junchenfu/microlens_rag")
+
+# Access as a pandas DataFrame
+df = rag_dataset["train"].to_pandas()
+print(df.head())
+print(f"Total: {len(df)} videos, {df['partition'].nunique()} categories")
+```
