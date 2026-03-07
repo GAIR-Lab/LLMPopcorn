@@ -17,7 +17,7 @@ pipeline_tag: text-generation
 
 **LLMPopcorn** is a research framework for generating popular short video titles, cover image prompts, and 3-second video prompts using Large Language Models (LLMs). It supports both a **Basic** direct-generation mode and a **PE (Prompt Enhancement)** mode that uses Retrieval-Augmented Generation (RAG) with Chain-of-Thought reasoning over the MicroLens dataset.
 
-**[🤗 Interactive Demo](https://huggingface.co/spaces/junchenfu/llmpopcorn-demo)** | **[📦 Prompts Dataset](https://huggingface.co/datasets/junchenfu/llmpopcorn_prompts)** | **[📊 RAG Dataset](https://huggingface.co/datasets/junchenfu/microlens_rag)**
+**[🤗 Interactive Demo](https://huggingface.co/spaces/junchenfu/llmpopcorn-demo)** | **[📦 Prompts Dataset](https://huggingface.co/datasets/junchenfu/llmpopcorn_prompts)** | **[📊 RAG Dataset](https://huggingface.co/datasets/junchenfu/microlens_rag)** | **[💻 GitHub](https://github.com/GAIR-Lab/LLMPopcorn)**
 
 ---
 
