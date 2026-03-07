@@ -7,10 +7,6 @@ tags:
 - llm
 - rag
 - research
-datasets:
-- junchenfu/llmpopcorn_prompts
-- junchenfu/microlens_rag
-pipeline_tag: text-generation
 ---
 
 # LLMPopcorn (ICASSP'26)
