@@ -155,3 +155,17 @@ from datasets import load_dataset
 df = load_dataset("junchenfu/microlens_rag", split="train").to_pandas()
 print(f"Total: {len(df)} videos, {df['partition'].nunique()} categories")
 ```
+
+---
+
+## Citation
+
+If you find this work useful, please cite:
+
+```bibtex
+@article{fu2026llmpopcorn,
+  title={LLMpopcorn: exploring LLMs as assistants for popular micro-video generation},
+  author={Fu, Junchen and Ge, Xuri and Zheng, Kaiwen and Karatzoglou, Alexandros and Arapakis, Ioannis and Xin, Xin and Ni, Yongxin and Jose, Joemon M},
+  year={2026}
+}
+```
