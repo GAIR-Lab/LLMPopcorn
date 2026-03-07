@@ -13,11 +13,21 @@ datasets:
 pipeline_tag: text-generation
 ---
 
-# LLMPopcorn
+# LLMPopcorn (ICASSP'26)
+
+![Micro-video Generation](https://img.shields.io/badge/Task-Micro--video_Generation-red)
+![Prompt Engineering](https://img.shields.io/badge/Task-Prompt_Engineering-red)
+![RAG](https://img.shields.io/badge/Task-RAG-red)
+![LLM](https://img.shields.io/badge/Task-LLM-red)
+<a href="https://arxiv.org/abs/2502.12945" alt="arXiv"><img src="https://img.shields.io/badge/arXiv-2502.12945-FAA41F.svg?style=flat" /></a>
+<a href="https://huggingface.co/spaces/junchenfu/llmpopcorn-demo" alt="Demo"><img src="https://img.shields.io/badge/🤗_Demo-Spaces-blue.svg?style=flat" /></a>
+<a href="https://huggingface.co/datasets/junchenfu/llmpopcorn_prompts" alt="Dataset"><img src="https://img.shields.io/badge/🤗_Dataset-Prompts-green.svg?style=flat" /></a>
+<a href="https://huggingface.co/datasets/junchenfu/microlens_rag" alt="RAG Dataset"><img src="https://img.shields.io/badge/🤗_Dataset-MicroLens_RAG-green.svg?style=flat" /></a>
+<a href="https://github.com/GAIR-Lab/LLMPopcorn" alt="GitHub"><img src="https://img.shields.io/badge/GitHub-LLMPopcorn-black.svg?style=flat&logo=github" /></a>
 
 **LLMPopcorn** is a research framework for generating popular short video titles, cover image prompts, and 3-second video prompts using Large Language Models (LLMs). It supports both a **Basic** direct-generation mode and a **PE (Prompt Enhancement)** mode that uses Retrieval-Augmented Generation (RAG) with Chain-of-Thought reasoning over the MicroLens dataset.
 
-**[🤗 Interactive Demo](https://huggingface.co/spaces/junchenfu/llmpopcorn-demo)** | **[📦 Prompts Dataset](https://huggingface.co/datasets/junchenfu/llmpopcorn_prompts)** | **[📊 RAG Dataset](https://huggingface.co/datasets/junchenfu/microlens_rag)** | **[💻 GitHub](https://github.com/GAIR-Lab/LLMPopcorn)**
+> **Paper:** [LLMPopcorn: Exploring LLMs as Assistants for Popular Micro-video Generation](https://arxiv.org/abs/2502.12945) (ICASSP 2026)
 
 ---
 
