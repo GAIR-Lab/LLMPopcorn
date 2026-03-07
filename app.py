@@ -2,7 +2,7 @@ import gradio as gr
 import torch
 import json
 import os
-import time
+import threading
 import numpy as np
 import pandas as pd
 import faiss
@@ -14,64 +14,68 @@ from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import spaces
 
-LOG_PATH = "debug-44b0fa.log"
-
-def _log(msg, data=None, hypothesis=None):
-    import json as _json
-    entry = {"sessionId": "44b0fa", "timestamp": int(time.time() * 1000),
-             "location": "app.py", "message": msg,
-             "data": data or {}, "hypothesisId": hypothesis or ""}
-    with open(LOG_PATH, "a") as f:
-        f.write(_json.dumps(entry) + "\n")
-
 # --- 1. LLM client ---
 HF_TOKEN = os.environ.get("HF_TOKEN")
-_log("startup: HF_TOKEN present", {"token_present": HF_TOKEN is not None}, "H-A")
 client = InferenceClient("meta-llama/Llama-3.3-70B-Instruct", token=HF_TOKEN)
 
-# --- 2. Lazy globals ---
+# --- 2. Lazy globals with threading lock ---
 _pipe = None
 _rag_df = None
 _embed_model = None
 _unique_partitions = None
 _partition_embeddings = None
+_pipe_lock = threading.Lock()
+_rag_lock = threading.Lock()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-_log("startup: device detected", {"device": device}, "H-B")
 
 def get_pipe():
     global _pipe
     if _pipe is None:
-        _log("lazy_load: starting video pipeline download", {}, "H-B")
-        step = 4
-        repo = "ByteDance/AnimateDiff-Lightning"
-        ckpt = f"animatediff_lightning_{step}step_diffusers.safetensors"
-        base = "emilianJR/epiCRealism"
-        adapter = MotionAdapter().to(device, dtype)
-        adapter.load_state_dict(load_file(hf_hub_download(repo, ckpt), device=device))
-        _pipe = AnimateDiffPipeline.from_pretrained(base, motion_adapter=adapter, torch_dtype=dtype).to(device)
-        _pipe.scheduler = EulerDiscreteScheduler.from_config(
-            _pipe.scheduler.config, timestep_spacing="trailing", beta_schedule="linear"
-        )
-        _log("lazy_load: video pipeline ready", {}, "H-B")
+        with _pipe_lock:
+            if _pipe is None:
+                print("Loading video pipeline (first use)...")
+                step = 4
+                repo = "ByteDance/AnimateDiff-Lightning"
+                ckpt = f"animatediff_lightning_{step}step_diffusers.safetensors"
+                base = "emilianJR/epiCRealism"
+                adapter = MotionAdapter().to(device, dtype)
+                adapter.load_state_dict(load_file(hf_hub_download(repo, ckpt), device=device))
+                _pipe = AnimateDiffPipeline.from_pretrained(
+                    base, motion_adapter=adapter, torch_dtype=dtype
+                ).to(device)
+                _pipe.scheduler = EulerDiscreteScheduler.from_config(
+                    _pipe.scheduler.config, timestep_spacing="trailing", beta_schedule="linear"
+                )
+                print("Video pipeline ready.")
     return _pipe
 
 def get_rag():
     global _rag_df, _embed_model, _unique_partitions, _partition_embeddings
     if _rag_df is None:
-        _log("lazy_load: starting RAG dataset download", {}, "H-C")
-        _rag_df = load_dataset("junchenfu/microlens_rag", split="train").to_pandas()
-        _rag_df["comment_count"] = _rag_df["comment_count"].fillna(0)
-        _embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L12-v2")
-        _unique_partitions = _rag_df["partition"].unique().tolist()
-        _partition_embeddings = _embed_model.encode(_unique_partitions)
-        _log("lazy_load: RAG ready", {"rows": len(_rag_df), "partitions": len(_unique_partitions)}, "H-C")
+        with _rag_lock:
+            if _rag_df is None:
+                print("Loading MicroLens RAG dataset (first use)...")
+                _rag_df = load_dataset("junchenfu/microlens_rag", split="train").to_pandas()
+                _rag_df["comment_count"] = _rag_df["comment_count"].fillna(0)
+                _embed_model = SentenceTransformer("sentence-transformers/all-MiniLM-L12-v2")
+                _unique_partitions = _rag_df["partition"].unique().tolist()
+                _partition_embeddings = _embed_model.encode(_unique_partitions)
+                print(f"RAG ready: {len(_rag_df)} videos, {len(_unique_partitions)} categories.")
     return _rag_df, _embed_model, _unique_partitions, _partition_embeddings
+
+# Pre-warm in background so the first user request is faster
+def _preload():
+    try:
+        get_rag()
+    except Exception as e:
+        print(f"Background preload warning: {e}")
+
+threading.Thread(target=_preload, daemon=True).start()
 
 # --- 3. Basic LLMPopcorn ---
 def generate_basic(query):
-    _log("generate_basic: called", {"query": query[:50]}, "H-A")
     system_prompt = (
         "You are a talented video creator. "
         "Generate a response in JSON format with 'title', 'cover_prompt', and 'video_prompt' (3s)."
@@ -91,9 +95,7 @@ def generate_basic(query):
         max_tokens=500,
         response_format={"type": "json_object"},
     )
-    result = json.loads(response.choices[0].message.content)
-    _log("generate_basic: success", {"title": result.get("title", "")[:50]}, "H-A")
-    return result
+    return json.loads(response.choices[0].message.content)
 
 # --- 4. PE: RAG + CoT ---
 def build_rag_context(user_prompt, selected_videos_num=10, num_tags=1, ratio=0.1):
@@ -140,7 +142,6 @@ def build_rag_context(user_prompt, selected_videos_num=10, num_tags=1, ratio=0.1
     return pos_ctx + "\n" + neg_ctx, top_partitions[0]
 
 def generate_pe(query, vid_num=10):
-    _log("generate_pe: called", {"query": query[:50]}, "H-C")
     rag_context, matched_tag = build_rag_context(query, selected_videos_num=vid_num)
     cot_prompt = f"""You are a talented video creator. Think step-by-step using the reference videos below, then generate the most popular title, cover prompt, and 3-second video prompt.
 
@@ -167,18 +168,15 @@ Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s
     )
     result = json.loads(response.choices[0].message.content)
     result["_matched_tag"] = matched_tag
-    _log("generate_pe: success", {"title": result.get("title", "")[:50], "tag": matched_tag}, "H-C")
     return result
 
-# --- 5. Video generation (lazy loaded, GPU) ---
+# --- 5. Video generation (lazy loaded inside GPU context) ---
 @spaces.GPU(duration=60)
 def run_video_generation(video_prompt):
-    _log("run_video_generation: called", {"prompt": video_prompt[:80]}, "H-B")
     pipe = get_pipe()
     output = pipe(prompt=video_prompt, guidance_scale=1.0, num_inference_steps=4, num_frames=16)
     gif_path = "output_video.gif"
     export_to_gif(output.frames[0], gif_path)
-    _log("run_video_generation: success", {}, "H-B")
     return gif_path
 
 # --- 6. Gradio entrypoints ---
