@@ -15,7 +15,7 @@ import spaces
 
 # --- 1. LLM client (Qwen2.5-1.5B-Instruct via HF serverless — lightweight) ---
 HF_TOKEN = os.environ.get("HF_TOKEN")
-client = InferenceClient("Qwen/Qwen2.5-1.5B-Instruct", token=HF_TOKEN)
+client = InferenceClient("meta-llama/Llama-3.2-3B-Instruct", token=HF_TOKEN)
 
 # --- 2. Lazy globals with threading lock ---
 _pipe = None
