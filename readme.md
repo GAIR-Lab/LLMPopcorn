@@ -13,22 +13,32 @@ datasets:
 pipeline_tag: text-generation
 ---
 
-# LLMPopcorn Usage Instructions
+# LLMPopcorn
 
-Welcome to LLMPopcorn! This guide will help you generate video titles and prompts, as well as create AI-generated videos based on those prompts.
+**LLMPopcorn** is a research framework for generating popular short video titles, cover image prompts, and 3-second video prompts using Large Language Models (LLMs). It supports both a **Basic** direct-generation mode and a **PE (Prompt Enhancement)** mode that uses Retrieval-Augmented Generation (RAG) with Chain-of-Thought reasoning over the MicroLens dataset.
+
+**[🤗 Interactive Demo](https://huggingface.co/spaces/junchenfu/llmpopcorn-demo)** | **[📦 Prompts Dataset](https://huggingface.co/datasets/junchenfu/llmpopcorn_prompts)** | **[📊 RAG Dataset](https://huggingface.co/datasets/junchenfu/microlens_rag)**
+
+---
 
 ## Prerequisites
 
 ### Install Required Python Packages
 
-Before running the scripts, ensure that you have installed the necessary Python packages. You can do this by executing the following command:
-
 ```bash
-pip install torch transformers diffusers tqdm numpy pandas sentence-transformers faiss-cpu openai huggingface_hub safetensors
+pip install torch transformers diffusers tqdm numpy pandas sentence-transformers faiss-cpu openai huggingface_hub safetensors accelerate datasets
 ```
 
-**Download the MicroLens Dataset**:  
-Download the following files from the [MicroLens dataset](https://github.com/westlake-repl/MicroLens) and place them in the `Microlens/` folder:
+> **Note:** `bitsandbytes` (for 4-bit quantization) is Linux-only. Install separately on GPU servers:
+> ```bash
+> pip install bitsandbytes
+> ```
+
+### Download the MicroLens Dataset
+
+Download the following files from the [MicroLens dataset](https://github.com/westlake-repl/MicroLens) and place them in the `Microlens/` folder.
+
+> **Alternatively**, use the pre-processed HuggingFace version — see [RAG Reference Dataset](#rag-reference-dataset-microlens) below.
 
 | File | Description |
 |------|-------------|
@@ -38,7 +48,7 @@ Download the following files from the [MicroLens dataset](https://github.com/wes
 | `MicroLens-100k_comment_en.txt` | User comments (tab-separated) |
 | `tags_to_summary.csv` | Video category tags (comma-separated) |
 
-Your directory structure should look like:
+Directory structure:
 ```
 LLMPopcorn/
 ├── Microlens/
@@ -52,59 +62,75 @@ LLMPopcorn/
 └── ...
 ```
 
+---
+
 ## Step 1: Generate Video Titles and Prompts
 
-To generate video titles and prompts, run the `LLMPopcorn.py` script:
+**Basic mode** — direct LLM generation:
 ```bash
 python LLMPopcorn.py
 ```
 
-To enhance LLMPopcorn, execute the `PE.py` script:
+**PE mode** — RAG + Chain-of-Thought enhanced generation:
 ```bash
 python PE.py
 ```
 
+---
+
 ## Step 2: Generate AI Videos
 
-To create AI-generated videos, execute the `generating_images_videos_three.py` script:
 ```bash
 python generating_images_videos_three.py
 ```
 
-## Step 3: Clone the Evaluation Code
+---
 
-Then, following the instructions in the MMRA repository, you can evaluate the generated videos.
+## Step 3: Evaluate
 
-## Tutorial: Using the Prompts Dataset
+Following the instructions in the [MMRA repository](https://github.com/westlake-repl/MicroLens), you can evaluate the generated videos.
 
-You can easily download and use the structured prompts directly from Hugging Face:
+---
 
-### 1. Install `datasets`
+## Interactive Demo
+
+Try the live demo on Hugging Face Spaces:
+
+**[🍿 LLMPopcorn Demo](https://huggingface.co/spaces/junchenfu/llmpopcorn-demo)**
+
+The demo lets you compare:
+- **Basic LLMPopcorn** — direct LLM generation from your query
+- **PE (Prompt Enhancement)** — RAG + CoT using MicroLens reference videos
+
+To run the demo locally:
 ```bash
-pip install datasets
+pip install gradio diffusers sentence-transformers faiss-cpu datasets spaces safetensors
+python app.py
 ```
 
-### 2. Load the Dataset in Python
+---
+
+## Datasets on Hugging Face
+
+### Prompts Dataset
+
 ```python
 from datasets import load_dataset
 
-# Load the LLMPopcorn prompts
 dataset = load_dataset("junchenfu/llmpopcorn_prompts")
-
-# Access the data (abstract or concrete)
 for item in dataset["train"]:
     print(f"Type: {item['type']}, Prompt: {item['prompt']}")
 ```
 
-This dataset contains both abstract and concrete prompts, which you can use as input for the video generation scripts in Step 2.
+Contains **200** abstract and concrete video prompts used as input queries.
 
-## RAG Reference Dataset: MicroLens
+### RAG Reference Dataset: MicroLens
 
-For the RAG-enhanced pipeline (`PE.py` + `pipline.py`), we provide a pre-processed version of the MicroLens dataset on Hugging Face so you don't need to download and process the raw files manually.
+For the RAG-enhanced pipeline (`PE.py` + `pipline.py`), a pre-processed MicroLens dataset is available so you don't need to download raw files:
 
-The dataset is available at: [**junchenfu/microlens_rag**](https://huggingface.co/datasets/junchenfu/microlens_rag)
+**[junchenfu/microlens_rag](https://huggingface.co/datasets/junchenfu/microlens_rag)**
 
-It contains **19,560** video entries across **22 categories** with the following fields:
+Contains **19,560** video entries across **22 categories**:
 
 | Column | Description |
 |--------|-------------|
@@ -115,17 +141,11 @@ It contains **19,560** video entries across **22 categories** with the following
 | `partition` | Video category (e.g., Anime, Game, Delicacy) |
 | `likes` | Number of likes |
 | `views` | Number of views |
-| `comment_count` | Number of comments (used as popularity signal) |
-
-### Load the RAG Dataset in Python
+| `comment_count` | Number of comments (popularity signal) |
 
 ```python
 from datasets import load_dataset
 
-rag_dataset = load_dataset("junchenfu/microlens_rag")
-
-# Access as a pandas DataFrame
-df = rag_dataset["train"].to_pandas()
-print(df.head())
+df = load_dataset("junchenfu/microlens_rag", split="train").to_pandas()
 print(f"Total: {len(df)} videos, {df['partition'].nunique()} categories")
 ```

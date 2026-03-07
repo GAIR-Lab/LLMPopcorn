@@ -1,0 +1,39 @@
+# Temporary clone directories used for HF Space deployment
+hf_check/
+hf_space_tmp/
+llmpopcorn-demo/
+
+# MicroLens raw dataset files (large, download separately)
+Microlens/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Generated output files
+*.gif
+*.mp4
+output_*/
+baseline_*/
+rag_cot_*/
+creation_*/
+
+# Debug logs
+debug-*.log
+
+# IDE
+.cursor/
+.vscode/
+*.idea/
+
+# OS
+.DS_Store
+Thumbs.db

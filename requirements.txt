@@ -10,4 +10,6 @@ openai
 huggingface_hub
 safetensors
 accelerate
-bitsandbytes
+datasets
+# bitsandbytes: Linux only (required for 4-bit quantization on GPU servers)
+# Install manually on Linux: pip install bitsandbytes
