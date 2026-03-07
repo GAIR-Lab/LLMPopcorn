@@ -7,3 +7,9 @@ huggingface_hub
 spaces
 pillow
 peft
+sentence-transformers
+faiss-cpu
+datasets
+pandas
+numpy
+safetensors
