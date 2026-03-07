@@ -6,17 +6,16 @@ import threading
 import numpy as np
 import pandas as pd
 import faiss
-from diffusers import AnimateDiffPipeline, MotionAdapter, EulerDiscreteScheduler
-from diffusers.utils import export_to_gif
-from huggingface_hub import InferenceClient, hf_hub_download
-from safetensors.torch import load_file
+from diffusers import LTXPipeline
+from diffusers.utils import export_to_video
+from huggingface_hub import InferenceClient
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import spaces
 
-# --- 1. LLM client ---
+# --- 1. LLM client (Qwen2.5-1.5B-Instruct via HF serverless — lightweight) ---
 HF_TOKEN = os.environ.get("HF_TOKEN")
-client = InferenceClient("meta-llama/Llama-3.3-70B-Instruct", token=HF_TOKEN)
+client = InferenceClient("Qwen/Qwen2.5-1.5B-Instruct", token=HF_TOKEN)
 
 # --- 2. Lazy globals with threading lock ---
 _pipe = None
@@ -28,27 +27,18 @@ _pipe_lock = threading.Lock()
 _rag_lock = threading.Lock()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
 def get_pipe():
     global _pipe
     if _pipe is None:
         with _pipe_lock:
             if _pipe is None:
-                print("Loading video pipeline (first use)...")
-                step = 4
-                repo = "ByteDance/AnimateDiff-Lightning"
-                ckpt = f"animatediff_lightning_{step}step_diffusers.safetensors"
-                base = "emilianJR/epiCRealism"
-                adapter = MotionAdapter().to(device, dtype)
-                adapter.load_state_dict(load_file(hf_hub_download(repo, ckpt), device=device))
-                _pipe = AnimateDiffPipeline.from_pretrained(
-                    base, motion_adapter=adapter, torch_dtype=dtype
+                print("Loading LTX-Video pipeline (first use)...")
+                _pipe = LTXPipeline.from_pretrained(
+                    "Lightricks/LTX-Video", torch_dtype=dtype
                 ).to(device)
-                _pipe.scheduler = EulerDiscreteScheduler.from_config(
-                    _pipe.scheduler.config, timestep_spacing="trailing", beta_schedule="linear"
-                )
-                print("Video pipeline ready.")
+                print("LTX-Video pipeline ready.")
     return _pipe
 
 def get_rag():
@@ -174,10 +164,16 @@ Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s
 @spaces.GPU(duration=60)
 def run_video_generation(video_prompt):
     pipe = get_pipe()
-    output = pipe(prompt=video_prompt, guidance_scale=1.0, num_inference_steps=4, num_frames=16)
-    gif_path = "output_video.gif"
-    export_to_gif(output.frames[0], gif_path)
-    return gif_path
+    output = pipe(
+        prompt=video_prompt,
+        num_inference_steps=4,
+        num_frames=25,
+        width=512,
+        height=288,
+    )
+    mp4_path = "output_video.mp4"
+    export_to_video(output.frames[0], mp4_path, fps=8)
+    return mp4_path
 
 # --- 6. Gradio entrypoints ---
 def run_basic(query):
@@ -185,8 +181,8 @@ def run_basic(query):
     title = content.get("title", "Untitled")
     cover = content.get("cover_prompt", "")
     video_prompt = content.get("video_prompt", query)
-    gif = run_video_generation(video_prompt)
-    return title, cover, video_prompt, gif
+    mp4 = run_video_generation(video_prompt)
+    return title, cover, video_prompt, mp4
 
 def run_pe(query, vid_num):
     content = generate_pe(query, int(vid_num))
@@ -194,8 +190,8 @@ def run_pe(query, vid_num):
     cover = content.get("cover_prompt", "")
     video_prompt = content.get("video_prompt", query)
     matched_tag = content.get("_matched_tag", "N/A")
-    gif = run_video_generation(video_prompt)
-    return title, cover, video_prompt, f"Matched category: **{matched_tag}**", gif
+    mp4 = run_video_generation(video_prompt)
+    return title, cover, video_prompt, f"Matched category: **{matched_tag}**", mp4
 
 # --- 7. Gradio UI ---
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
@@ -217,7 +213,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                     basic_btn = gr.Button("Generate!", variant="primary")
                 with gr.Column():
                     basic_title = gr.Textbox(label="Generated Title")
-                    basic_video = gr.Image(label="Generated 3s Video (GIF)")
+                    basic_video = gr.Video(label="Generated 3s Video")
             with gr.Accordion("Prompt Details", open=False):
                 basic_cover = gr.Textbox(label="Cover Prompt")
                 basic_vprompt = gr.Textbox(label="Video Prompt")
@@ -248,7 +244,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 with gr.Column():
                     pe_title = gr.Textbox(label="Generated Title")
                     pe_matched = gr.Markdown()
-                    pe_video = gr.Image(label="Generated 3s Video (GIF)")
+                    pe_video = gr.Video(label="Generated 3s Video")
             with gr.Accordion("Prompt Details", open=False):
                 pe_cover = gr.Textbox(label="Cover Prompt")
                 pe_vprompt = gr.Textbox(label="Video Prompt")
