@@ -1,6 +1,7 @@
 import gradio as gr
 import torch
 import json
+import os
 import numpy as np
 import pandas as pd
 import faiss
@@ -12,8 +13,9 @@ from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import spaces
 
-# --- 1. LLM client ---
-client = InferenceClient("meta-llama/Llama-3.3-70B-Instruct")
+# --- 1. LLM client (token loaded from Space secret HF_TOKEN) ---
+HF_TOKEN = os.environ.get("HF_TOKEN")
+client = InferenceClient("meta-llama/Llama-3.3-70B-Instruct", token=HF_TOKEN)
 
 # --- 2. Video generation pipeline (AnimateDiff-Lightning) ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
