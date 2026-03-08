@@ -16,7 +16,6 @@ tags:
 ![RAG](https://img.shields.io/badge/Task-RAG-red)
 ![LLM](https://img.shields.io/badge/Task-LLM-red)
 <a href="https://arxiv.org/abs/2502.12945" alt="arXiv"><img src="https://img.shields.io/badge/arXiv-2502.12945-FAA41F.svg?style=flat" /></a>
-<a href="https://huggingface.co/spaces/junchenfu/llmpopcorn-demo" alt="Demo"><img src="https://img.shields.io/badge/🤗_Demo-Spaces-blue.svg?style=flat" /></a>
 <a href="https://huggingface.co/datasets/junchenfu/llmpopcorn_prompts" alt="Dataset"><img src="https://img.shields.io/badge/🤗_Dataset-Prompts-green.svg?style=flat" /></a>
 <a href="https://huggingface.co/datasets/junchenfu/microlens_rag" alt="RAG Dataset"><img src="https://img.shields.io/badge/🤗_Dataset-MicroLens_RAG-green.svg?style=flat" /></a>
 <a href="https://github.com/GAIR-Lab/LLMPopcorn" alt="GitHub"><img src="https://img.shields.io/badge/GitHub-LLMPopcorn-black.svg?style=flat&logo=github" /></a>
@@ -95,24 +94,6 @@ python generating_images_videos_three.py
 ## Step 3: Evaluate
 
 Following the instructions in the [MMRA repository](https://github.com/westlake-repl/MicroLens), you can evaluate the generated videos.
-
----
-
-## Interactive Demo
-
-Try the live demo on Hugging Face Spaces:
-
-**[🍿 LLMPopcorn Demo](https://huggingface.co/spaces/junchenfu/llmpopcorn-demo)**
-
-The demo lets you compare:
-- **Basic LLMPopcorn** — direct LLM generation from your query
-- **PE (Prompt Enhancement)** — RAG + CoT using MicroLens reference videos
-
-To run the demo locally:
-```bash
-pip install gradio diffusers sentence-transformers faiss-cpu datasets spaces safetensors
-python app.py
-```
 
 ---
 
