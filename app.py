@@ -13,9 +13,14 @@ from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import spaces
 
-# --- 1. LLM client (Qwen2.5-1.5B-Instruct via HF serverless — lightweight) ---
+# --- 1. LLM client — use provider="hf-inference" to bypass the router
+# and use HF's own direct inference endpoint (no third-party provider needed)
 HF_TOKEN = os.environ.get("HF_TOKEN")
-client = InferenceClient("meta-llama/Llama-3.2-3B-Instruct", token=HF_TOKEN)
+client = InferenceClient(
+    "meta-llama/Llama-3.2-3B-Instruct",
+    token=HF_TOKEN,
+    provider="hf-inference",
+)
 
 # --- 2. Lazy globals with threading lock ---
 _pipe = None
