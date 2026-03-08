@@ -4,22 +4,24 @@ import json
 import os
 import re
 import threading
-import requests
 import numpy as np
 import pandas as pd
 import faiss
 from diffusers import LTXPipeline
 from diffusers.utils import export_to_video
+from transformers import pipeline as hf_pipeline
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import spaces
 
-# --- 1. LLM via direct HF Inference API (bypasses the router, no provider config needed)
 HF_TOKEN = os.environ.get("HF_TOKEN")
-_LLM_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
-_LLM_HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
 
-# --- 2. Lazy globals with threading lock ---
+# --- 1. Tiny local LLM (Qwen2.5-0.5B-Instruct, runs on CPU, no external API needed)
+_LLM_ID = "Qwen/Qwen2.5-0.5B-Instruct"
+_llm_pipe = None
+_llm_lock = threading.Lock()
+
+# --- 2. Lazy globals with threading locks ---
 _pipe = None
 _rag_df = None
 _embed_model = None
@@ -66,6 +68,22 @@ def _preload():
 
 threading.Thread(target=_preload, daemon=True).start()
 
+def get_llm():
+    """Lazy-load a tiny local LLM pipeline (Qwen2.5-0.5B-Instruct on CPU)."""
+    global _llm_pipe
+    if _llm_pipe is None:
+        with _llm_lock:
+            if _llm_pipe is None:
+                print(f"Loading LLM {_LLM_ID} ...")
+                _llm_pipe = hf_pipeline(
+                    "text-generation",
+                    model=_LLM_ID,
+                    torch_dtype=torch.float32,
+                    device_map="cpu",
+                )
+                print("LLM ready.")
+    return _llm_pipe
+
 def _extract_json(text):
     """Extract the first JSON object from a string, with regex fallback."""
     try:
@@ -76,55 +94,44 @@ def _extract_json(text):
             return json.loads(match.group())
         raise ValueError(f"No JSON found in response: {text[:200]}")
 
-def _mistral_prompt(system: str, user: str) -> str:
-    """Format messages using Mistral's [INST] template."""
-    return f"<s>[INST] {system}\n\n{user} [/INST]"
-
-def _llm_generate(prompt: str, max_new_tokens: int = 500) -> str:
-    """Call HF Inference API directly (no router, no provider config needed)."""
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": max_new_tokens,
-            "return_full_text": False,
-            "do_sample": False,
-            "temperature": None,
-        },
-    }
+def _llm_generate(messages: list, max_new_tokens: int = 500) -> str:
+    """Run the local LLM pipeline on a chat messages list."""
     # region agent log
     import time
-    _log = {"sessionId": "44b0fa", "timestamp": int(time.time()*1000), "location": "app.py:_llm_generate", "message": "LLM call start", "data": {"url": _LLM_URL, "max_new_tokens": max_new_tokens, "prompt_len": len(prompt)}, "hypothesisId": "A"}
     try:
-        with open("debug-44b0fa.log", "a") as _f: _f.write(json.dumps(_log) + "\n")
+        with open("debug-44b0fa.log", "a") as _f:
+            _f.write(json.dumps({"sessionId": "44b0fa", "timestamp": int(time.time()*1000), "location": "app.py:_llm_generate:entry", "message": "local LLM call", "data": {"model": _LLM_ID, "max_new_tokens": max_new_tokens}, "hypothesisId": "B"}) + "\n")
     except Exception: pass
     # endregion
-    resp = requests.post(_LLM_URL, headers=_LLM_HEADERS, json=payload, timeout=120)
+    pipe = get_llm()
+    out = pipe(messages, max_new_tokens=max_new_tokens, do_sample=False, return_full_text=False)
+    # pipeline returns [{"generated_text": [{"role": "assistant", "content": "..."}]}]
+    generated = out[0]["generated_text"]
+    if isinstance(generated, list):
+        text = generated[-1].get("content", "")
+    else:
+        text = str(generated)
     # region agent log
-    _log2 = {"sessionId": "44b0fa", "timestamp": int(time.time()*1000), "location": "app.py:_llm_generate", "message": "LLM call response", "data": {"status": resp.status_code, "body_preview": resp.text[:300]}, "hypothesisId": "A"}
     try:
-        with open("debug-44b0fa.log", "a") as _f: _f.write(json.dumps(_log2) + "\n")
+        with open("debug-44b0fa.log", "a") as _f:
+            _f.write(json.dumps({"sessionId": "44b0fa", "timestamp": int(time.time()*1000), "location": "app.py:_llm_generate:exit", "message": "LLM output", "data": {"preview": text[:200]}, "hypothesisId": "B"}) + "\n")
     except Exception: pass
     # endregion
-    resp.raise_for_status()
-    result = resp.json()
-    if isinstance(result, list) and result:
-        return result[0].get("generated_text", "")
-    return str(result)
+    return text
 
 # --- 3. Basic LLMPopcorn ---
 def generate_basic(query):
-    system_prompt = (
-        "You are a talented video creator. "
-        "Generate a response in JSON format with 'title', 'cover_prompt', and 'video_prompt' (3s)."
-    )
-    user_prompt = (
-        f"User Query: {query}\n\n"
-        "Requirements:\n- title: MAX 50 chars\n"
-        "- cover_prompt: image description\n"
-        "- video_prompt: 3s motion description\n\n"
-        "Return JSON ONLY, no extra text."
-    )
-    raw = _llm_generate(_mistral_prompt(system_prompt, user_prompt), max_new_tokens=500)
+    messages = [
+        {"role": "system", "content": (
+            "You are a talented video creator. "
+            "Respond ONLY with a JSON object containing keys: title (max 50 chars), cover_prompt, video_prompt (3s clip)."
+        )},
+        {"role": "user", "content": (
+            f"User Query: {query}\n\n"
+            "Return JSON ONLY, no extra text, no markdown fences."
+        )},
+    ]
+    raw = _llm_generate(messages, max_new_tokens=500)
     return _extract_json(raw)
 
 # --- 4. PE: RAG + CoT ---
@@ -188,7 +195,11 @@ Reasoning Chain:
 
 Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s).
 """
-    raw = _llm_generate(_mistral_prompt("You are a talented video creator. Return JSON only.", cot_prompt), max_new_tokens=800)
+    pe_messages = [
+        {"role": "system", "content": "You are a talented video creator. Return JSON only."},
+        {"role": "user", "content": cot_prompt},
+    ]
+    raw = _llm_generate(pe_messages, max_new_tokens=800)
     result = _extract_json(raw)
     result["_matched_tag"] = matched_tag
     return result
