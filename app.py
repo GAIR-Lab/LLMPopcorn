@@ -2,6 +2,7 @@ import gradio as gr
 import torch
 import json
 import os
+import re
 import threading
 import numpy as np
 import pandas as pd
@@ -70,7 +71,6 @@ threading.Thread(target=_preload, daemon=True).start()
 
 def _extract_json(text):
     """Extract the first JSON object from a string, with regex fallback."""
-    import re
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -78,6 +78,10 @@ def _extract_json(text):
         if match:
             return json.loads(match.group())
         raise ValueError(f"No JSON found in response: {text[:200]}")
+
+def _mistral_prompt(system: str, user: str) -> str:
+    """Format a system+user message using Mistral's [INST] template."""
+    return f"<s>[INST] {system}\n\n{user} [/INST]"
 
 # --- 3. Basic LLMPopcorn ---
 def generate_basic(query):
@@ -90,16 +94,14 @@ def generate_basic(query):
         "Requirements:\n- title: MAX 50 chars\n"
         "- cover_prompt: image description\n"
         "- video_prompt: 3s motion description\n\n"
-        "Return JSON ONLY."
+        "Return JSON ONLY, no extra text."
     )
-    response = client.chat_completion(
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        max_tokens=500,
+    raw = client.text_generation(
+        _mistral_prompt(system_prompt, user_prompt),
+        max_new_tokens=500,
+        do_sample=False,
     )
-    return _extract_json(response.choices[0].message.content)
+    return _extract_json(raw)
 
 # --- 4. PE: RAG + CoT ---
 def build_rag_context(user_prompt, selected_videos_num=10, num_tags=1, ratio=0.1):
@@ -162,14 +164,12 @@ Reasoning Chain:
 
 Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s).
 """
-    response = client.chat_completion(
-        messages=[
-            {"role": "system", "content": "You are a talented video creator. Return JSON only."},
-            {"role": "user", "content": cot_prompt},
-        ],
-        max_tokens=800,
+    raw = client.text_generation(
+        _mistral_prompt("You are a talented video creator. Return JSON only.", cot_prompt),
+        max_new_tokens=800,
+        do_sample=False,
     )
-    result = _extract_json(response.choices[0].message.content)
+    result = _extract_json(raw)
     result["_matched_tag"] = matched_tag
     return result
 
