@@ -96,28 +96,13 @@ def _extract_json(text):
 
 def _llm_generate(messages: list, max_new_tokens: int = 500) -> str:
     """Run the local LLM pipeline on a chat messages list."""
-    # region agent log
-    import time
-    try:
-        with open("debug-44b0fa.log", "a") as _f:
-            _f.write(json.dumps({"sessionId": "44b0fa", "timestamp": int(time.time()*1000), "location": "app.py:_llm_generate:entry", "message": "local LLM call", "data": {"model": _LLM_ID, "max_new_tokens": max_new_tokens}, "hypothesisId": "B"}) + "\n")
-    except Exception: pass
-    # endregion
     pipe = get_llm()
     out = pipe(messages, max_new_tokens=max_new_tokens, do_sample=False, return_full_text=False)
     # pipeline returns [{"generated_text": [{"role": "assistant", "content": "..."}]}]
     generated = out[0]["generated_text"]
     if isinstance(generated, list):
-        text = generated[-1].get("content", "")
-    else:
-        text = str(generated)
-    # region agent log
-    try:
-        with open("debug-44b0fa.log", "a") as _f:
-            _f.write(json.dumps({"sessionId": "44b0fa", "timestamp": int(time.time()*1000), "location": "app.py:_llm_generate:exit", "message": "LLM output", "data": {"preview": text[:200]}, "hypothesisId": "B"}) + "\n")
-    except Exception: pass
-    # endregion
-    return text
+        return generated[-1].get("content", "")
+    return str(generated)
 
 # --- 3. Basic LLMPopcorn ---
 def generate_basic(query):
