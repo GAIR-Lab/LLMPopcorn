@@ -13,11 +13,10 @@ from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 import spaces
 
-# --- 1. LLM client — use provider="hf-inference" to bypass the router
-# and use HF's own direct inference endpoint (no third-party provider needed)
+# --- 1. LLM client — Mistral-7B is reliably hosted on HF's own inference cluster
 HF_TOKEN = os.environ.get("HF_TOKEN")
 client = InferenceClient(
-    "meta-llama/Llama-3.2-3B-Instruct",
+    "mistralai/Mistral-7B-Instruct-v0.3",
     token=HF_TOKEN,
     provider="hf-inference",
 )
@@ -69,6 +68,17 @@ def _preload():
 
 threading.Thread(target=_preload, daemon=True).start()
 
+def _extract_json(text):
+    """Extract the first JSON object from a string, with regex fallback."""
+    import re
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise ValueError(f"No JSON found in response: {text[:200]}")
+
 # --- 3. Basic LLMPopcorn ---
 def generate_basic(query):
     system_prompt = (
@@ -88,9 +98,8 @@ def generate_basic(query):
             {"role": "user", "content": user_prompt},
         ],
         max_tokens=500,
-        response_format={"type": "json_object"},
     )
-    return json.loads(response.choices[0].message.content)
+    return _extract_json(response.choices[0].message.content)
 
 # --- 4. PE: RAG + CoT ---
 def build_rag_context(user_prompt, selected_videos_num=10, num_tags=1, ratio=0.1):
@@ -159,9 +168,8 @@ Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s
             {"role": "user", "content": cot_prompt},
         ],
         max_tokens=800,
-        response_format={"type": "json_object"},
     )
-    result = json.loads(response.choices[0].message.content)
+    result = _extract_json(response.choices[0].message.content)
     result["_matched_tag"] = matched_tag
     return result
 
