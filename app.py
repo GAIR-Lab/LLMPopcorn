@@ -185,12 +185,12 @@ Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s
     return result
 
 # --- 5. Video generation (lazy loaded inside GPU context) ---
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=120)
 def run_video_generation(video_prompt):
     pipe = get_pipe()
     output = pipe(
         prompt=video_prompt,
-        num_inference_steps=4,
+        num_inference_steps=25,
         num_frames=25,
         width=512,
         height=288,
