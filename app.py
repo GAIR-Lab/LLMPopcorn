@@ -1,3 +1,6 @@
+# spaces MUST be imported before torch / any CUDA package (ZeroGPU requirement)
+import spaces
+
 import gradio as gr
 import torch
 import json
@@ -12,12 +15,11 @@ from diffusers.utils import export_to_video
 from transformers import pipeline as hf_pipeline
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
-import spaces
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# --- 1. Tiny local LLM (Qwen2.5-0.5B-Instruct, runs on CPU, no external API needed)
-_LLM_ID = "Qwen/Qwen2.5-0.5B-Instruct"
+# --- 1. LLM: Qwen2.5-7B-Instruct loaded on GPU via ZeroGPU
+_LLM_ID = "Qwen/Qwen2.5-7B-Instruct"
 _llm_pipe = None
 _llm_lock = threading.Lock()
 
@@ -30,9 +32,6 @@ _partition_embeddings = None
 _pipe_lock = threading.Lock()
 _rag_lock = threading.Lock()
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-
 def get_pipe():
     global _pipe
     if _pipe is None:
@@ -40,8 +39,9 @@ def get_pipe():
             if _pipe is None:
                 print("Loading LTX-Video pipeline (first use)...")
                 _pipe = LTXPipeline.from_pretrained(
-                    "Lightricks/LTX-Video", torch_dtype=dtype
-                ).to(device)
+                    "Lightricks/LTX-Video", torch_dtype=torch.bfloat16
+                )
+                _pipe.to("cuda")
                 print("LTX-Video pipeline ready.")
     return _pipe
 
@@ -68,22 +68,6 @@ def _preload():
 
 threading.Thread(target=_preload, daemon=True).start()
 
-def get_llm():
-    """Lazy-load a tiny local LLM pipeline (Qwen2.5-0.5B-Instruct on CPU)."""
-    global _llm_pipe
-    if _llm_pipe is None:
-        with _llm_lock:
-            if _llm_pipe is None:
-                print(f"Loading LLM {_LLM_ID} ...")
-                _llm_pipe = hf_pipeline(
-                    "text-generation",
-                    model=_LLM_ID,
-                    torch_dtype=torch.float32,
-                    device_map="cpu",
-                )
-                print("LLM ready.")
-    return _llm_pipe
-
 def _extract_json(text):
     """Extract the first JSON object from a string, with regex fallback."""
     try:
@@ -94,11 +78,22 @@ def _extract_json(text):
             return json.loads(match.group())
         raise ValueError(f"No JSON found in response: {text[:200]}")
 
+@spaces.GPU(duration=60)
 def _llm_generate(messages: list, max_new_tokens: int = 500) -> str:
-    """Run the local LLM pipeline on a chat messages list."""
-    pipe = get_llm()
-    out = pipe(messages, max_new_tokens=max_new_tokens, do_sample=False, return_full_text=False)
-    # pipeline returns [{"generated_text": [{"role": "assistant", "content": "..."}]}]
+    """Run Qwen2.5-7B-Instruct on ZeroGPU. Model is lazy-loaded on first call."""
+    global _llm_pipe
+    if _llm_pipe is None:
+        with _llm_lock:
+            if _llm_pipe is None:
+                print(f"Loading LLM {_LLM_ID} ...")
+                _llm_pipe = hf_pipeline(
+                    "text-generation",
+                    model=_LLM_ID,
+                    torch_dtype=torch.bfloat16,
+                    device_map="auto",
+                )
+                print("LLM ready.")
+    out = _llm_pipe(messages, max_new_tokens=max_new_tokens, do_sample=False, return_full_text=False)
     generated = out[0]["generated_text"]
     if isinstance(generated, list):
         return generated[-1].get("content", "")
