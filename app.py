@@ -10,7 +10,7 @@ import threading
 import numpy as np
 import pandas as pd
 import faiss
-from diffusers import WanPipeline
+from diffusers import HunyuanVideo15Pipeline
 from diffusers.utils import export_to_video
 from transformers import pipeline as hf_pipeline
 from sentence_transformers import SentenceTransformer
@@ -33,19 +33,19 @@ _pipe_lock = threading.Lock()
 _rag_lock = threading.Lock()
 
 def get_pipe():
-    """Lazy-load Wan2.1-T2V-1.3B inside a ZeroGPU context."""
+    """Lazy-load HunyuanVideo-1.5 inside a ZeroGPU context."""
     global _pipe
     if _pipe is None:
         with _pipe_lock:
             if _pipe is None:
-                print("Loading Wan2.1-T2V-1.3B pipeline...")
-                _pipe = WanPipeline.from_pretrained(
-                    "Wan-AI/Wan2.1-T2V-1.3B",
+                print("Loading HunyuanVideo-1.5 pipeline...")
+                _pipe = HunyuanVideo15Pipeline.from_pretrained(
+                    "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_t2v",
                     torch_dtype=torch.bfloat16,
                 )
                 _pipe.enable_model_cpu_offload()
                 _pipe.vae.enable_tiling()
-                print("Wan2.1-T2V pipeline ready.")
+                print("HunyuanVideo-1.5 pipeline ready.")
     return _pipe
 
 def get_rag():
@@ -187,21 +187,21 @@ Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s
     result["_matched_tag"] = matched_tag
     return result
 
-# --- 5. Video generation (Wan2.1-T2V-1.3B inside ZeroGPU context) ---
-@spaces.GPU(duration=180)
+# --- 5. Video generation (HunyuanVideo-1.5 inside ZeroGPU context) ---
+@spaces.GPU(duration=300)
 def run_video_generation(video_prompt):
     pipe = get_pipe()
+    generator = torch.Generator(device="cuda").manual_seed(42)
     output = pipe(
         prompt=video_prompt,
-        negative_prompt="blurry, ugly, bad quality, distorted, low resolution",
-        width=512,
-        height=288,
-        num_frames=33,
-        num_inference_steps=24,
-        guidance_scale=5.0,
+        generator=generator,
+        num_frames=49,       # ~2s at 24fps — fast enough for a demo
+        num_inference_steps=30,
+        width=544,
+        height=960,          # 9:16 portrait — TikTok/short-video style
     )
     mp4_path = "output_video.mp4"
-    export_to_video(output.frames[0], mp4_path, fps=16)
+    export_to_video(output.frames[0], mp4_path, fps=24)
     return mp4_path
 
 # --- 6. Gradio entrypoints ---
