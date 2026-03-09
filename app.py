@@ -10,11 +10,9 @@ import threading
 import numpy as np
 import pandas as pd
 import faiss
-from diffusers import AutoencoderKLWan, WanVACEPipeline, WanVACETransformer3DModel, GGUFQuantizationConfig
-from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
+from diffusers import WanPipeline
 from diffusers.utils import export_to_video
-from transformers import UMT5EncoderModel, pipeline as hf_pipeline
-from huggingface_hub import hf_hub_download
+from transformers import pipeline as hf_pipeline
 from sentence_transformers import SentenceTransformer
 from datasets import load_dataset
 
@@ -35,44 +33,19 @@ _pipe_lock = threading.Lock()
 _rag_lock = threading.Lock()
 
 def get_pipe():
-    """Lazy-load Wan2.1-VACE-1.3B (GGUF Q4_0) inside a ZeroGPU context."""
+    """Lazy-load Wan2.1-T2V-1.3B inside a ZeroGPU context."""
     global _pipe
     if _pipe is None:
         with _pipe_lock:
             if _pipe is None:
-                print("Loading Wan2.1-VACE-1.3B pipeline...")
-                gguf_path = hf_hub_download(
-                    repo_id="calcuis/wan-gguf",
-                    filename="wan2.1-v5-vace-1.3b-q4_0.gguf",
-                )
-                transformer = WanVACETransformer3DModel.from_single_file(
-                    gguf_path,
-                    quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16),
+                print("Loading Wan2.1-T2V-1.3B pipeline...")
+                _pipe = WanPipeline.from_pretrained(
+                    "Wan-AI/Wan2.1-T2V-1.3B",
                     torch_dtype=torch.bfloat16,
-                )
-                text_encoder = UMT5EncoderModel.from_pretrained(
-                    "chatpig/umt5xxl-encoder-gguf",
-                    gguf_file="umt5xxl-encoder-q4_0.gguf",
-                    torch_dtype=torch.bfloat16,
-                )
-                vae = AutoencoderKLWan.from_pretrained(
-                    "callgg/wan-decoder",
-                    subfolder="vae",
-                    torch_dtype=torch.float32,
-                )
-                _pipe = WanVACEPipeline.from_pretrained(
-                    "callgg/wan-decoder",
-                    transformer=transformer,
-                    text_encoder=text_encoder,
-                    vae=vae,
-                    torch_dtype=torch.bfloat16,
-                )
-                _pipe.scheduler = UniPCMultistepScheduler.from_config(
-                    _pipe.scheduler.config, flow_shift=3.0
                 )
                 _pipe.enable_model_cpu_offload()
                 _pipe.vae.enable_tiling()
-                print("Wan2.1-VACE pipeline ready.")
+                print("Wan2.1-T2V pipeline ready.")
     return _pipe
 
 def get_rag():
@@ -214,7 +187,7 @@ Return JSON ONLY with keys: title (max 50 chars), cover_prompt, video_prompt (3s
     result["_matched_tag"] = matched_tag
     return result
 
-# --- 5. Video generation (Wan2.1-VACE-1.3B inside ZeroGPU context) ---
+# --- 5. Video generation (Wan2.1-T2V-1.3B inside ZeroGPU context) ---
 @spaces.GPU(duration=180)
 def run_video_generation(video_prompt):
     pipe = get_pipe()
@@ -225,8 +198,7 @@ def run_video_generation(video_prompt):
         height=288,
         num_frames=33,
         num_inference_steps=24,
-        guidance_scale=2.5,
-        conditioning_scale=0.0,
+        guidance_scale=5.0,
     )
     mp4_path = "output_video.mp4"
     export_to_video(output.frames[0], mp4_path, fps=16)
